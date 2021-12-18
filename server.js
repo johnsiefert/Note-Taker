@@ -1,57 +1,77 @@
-// requiring express module 
-const express = require('express');
+const PORT = process.env.PORT || 3001;
 const fs = require('fs');
-const path = require('path'); 
+const path = require('path');
 
-// if port is any route or 3001
-const PORT = process.env.PORT || 3001; 
+const express = require('express');
+const app = express();
 
-// instantiate the server
-const app = express(); 
+const allNotes = require('./db/db.json');
 
-// parse incoming string or array data
-app.use(express.urlencoded ( { extended: true }));
-// parse incoming JSON data
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-// middleware for public files
-app.use(express.static('public')); 
+app.use(express.static('public'));
 
-//request data
-const { notes } = require ('.data/db.json');
+app.get('/api/notes', (req, res) => {
+    res.json(allNotes.slice(1));
+});
 
-// function handling taking the data from req.body and adding it to our db.json file
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, './public/index.html'));
+});
 
-function createNewNote (body, notesArray) {
-    const note = body;
-    notesArray.push(note);
+app.get('/notes', (req, res) => {
+    res.sendFile(path.join(__dirname, './public/notes.html'));
+});
 
-    //path to write file
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, './public/index.html'));
+});
+
+function createNewNote(body, notesArray) {
+    const newNote = body;
+    if (!Array.isArray(notesArray))
+        notesArray = [];
+    
+    if (notesArray.length === 0)
+        notesArray.push(0);
+
+    body.id = notesArray[0];
+    notesArray[0]++;
+
+    notesArray.push(newNote);
     fs.writeFileSync(
-        path.join(__dirname, '.data/db.json'),
-        JSON.stringify({ notes : notesArray }, null, 2)
+        path.join(__dirname, './db/db.json'),
+        JSON.stringify(notesArray, null, 2)
     );
-    //return finsihed code to post route for response
-    return note;
-};
+    return newNote;
+}
 
-//validating data
-function validateNote (note) {
+app.post('/api/notes', (req, res) => {
+    const newNote = createNewNote(req.body, allNotes);
+    res.json(newNote);
+});
 
-    if (!note.title || typeof note.title !== 'string') {
-        return false;
+function deleteNote(id, notesArray) {
+    for (let i = 0; i < notesArray.length; i++) {
+        let note = notesArray[i];
+
+        if (note.id == id) {
+            notesArray.splice(i, 1);
+            fs.writeFileSync(
+                path.join(__dirname, './db/db.json'),
+                JSON.stringify(notesArray, null, 2)
+            );
+
+            break;
+        }
     }
-    if (!note.text || typeof note.text !== 'string') {
-        return false;
-    }
-    return true;
-};
+}
 
+app.delete('/api/notes/:id', (req, res) => {
+    deleteNote(req.params.id, allNotes);
+    res.json(true);
+});
 
-
-
-
-
-// chain listen() method onto our servers
 app.listen(PORT, () => {
     console.log(`API server now on port ${PORT}!`);
 });
